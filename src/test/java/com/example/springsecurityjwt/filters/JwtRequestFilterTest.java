@@ -22,8 +22,7 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.Arrays;
 
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @RunWith(MockitoJUnitRunner.class)
 public class JwtRequestFilterTest {
@@ -52,19 +51,45 @@ public class JwtRequestFilterTest {
     }
 
     @Test
-    public void testDoFilterInternal() throws ServletException, IOException {
+    public void when_doFilterInternal_withoutAuthentication_shouldSetUserAuthentication() throws ServletException, IOException {
         String authorizationHeader = "Bearer "+MOCK_ACCESS_TOKEN;
+        String username = "foo";
+        String password = "foo";
         String jwt = authorizationHeader.substring(7);
 
         GrantedAuthority authority = new SimpleGrantedAuthority("ADMIN");
-        UserDetails userDetails = new User("foo", "foo", Arrays.asList(authority));
+        UserDetails userDetails = new User(username, password, Arrays.asList(authority));
 
         when(request.getHeader("Authorization")).thenReturn(authorizationHeader);
-        when(jwtUtil.extractUsername(jwt)).thenReturn("foo");
-        when(userDetailsService.loadUserByUsername("foo")).thenReturn(userDetails);
+        when(jwtUtil.extractUsername(jwt)).thenReturn(username);
+        when(userDetailsService.loadUserByUsername(username)).thenReturn(userDetails);
         when(jwtUtil.validateToken(jwt, userDetails)).thenReturn(true);
 
         jwtRequestFilter.doFilterInternal(request, response, chain);
+
+        verify(jwtRequestFilter, times(1)).setUserAuthentication(request, userDetails);
+        verify(chain, times(1)).doFilter(request, response);
+    }
+
+
+    @Test
+    public void when_doFilterInternal_withHasAuthenticated_shouldNotCallSetUserAuthentication() throws ServletException, IOException {
+        String authorizationHeader = "Bearer "+MOCK_ACCESS_TOKEN;
+        String username = "foo";
+        String password = "foo";
+        String jwt = authorizationHeader.substring(7);
+
+        GrantedAuthority authority = new SimpleGrantedAuthority("ADMIN");
+        UserDetails userDetails = new User(username, password, Arrays.asList(authority));
+
+        when(request.getHeader("Authorization")).thenReturn(authorizationHeader);
+        when(jwtUtil.extractUsername(jwt)).thenReturn(username);
+        when(jwtRequestFilter.isNotAuthenticated(username)).thenReturn(false);
+
+        jwtRequestFilter.doFilterInternal(request, response, chain);
+
+        verify(jwtRequestFilter, never()).setUserAuthentication(request, userDetails);
+        verify(chain, times(1)).doFilter(request, response);
     }
 
 }
